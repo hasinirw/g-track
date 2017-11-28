@@ -71,7 +71,7 @@ int main(int argc, char **argv)
 	while(1)
 	{
 		
-		usleep(50000);
+		usleep(25000);
 		strcpy(response,"");
 
 		//data request sequence: 0xFF 0x08 0x07 0x00 0x00 0x00 0x00;
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
 		
 			reqCounter++;
 			
-			if(reqCounter >=120){
+			if(reqCounter >=100){
 			    return 0;
 		        }
 		        
