@@ -1,3 +1,11 @@
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int mes_dtw(int (*drg)[3], int (*drg1)[3],int n, int m, int dim);
+int distanceBetween(int p1, int p2);
+ 
+
 int templateg[][3] ={{ -1424, -3814, 316 } ,
 { 1177, 1270, -375 } ,
 { 3029, 3803, -2675 } ,
