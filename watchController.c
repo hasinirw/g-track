@@ -25,8 +25,10 @@ int main(int argc, char **argv)
 	char dataRequest[7];
 	int cFlag = 0;
 	int r, c;
+	int start_recording =0;
+	int rms_array[200];
 
-	int8_t x=0, y=0, z=0, u=-1;
+	int8_t x=0, y=0, z=0, u=0;
 	int8_t filter_x=0, filter_y=0, filter_z=0;
 
 	start[0] = 0xFF;
@@ -60,18 +62,21 @@ int main(int argc, char **argv)
 
 	//start sequence: 0xFF 0x07 0x03;
 	write(wFile,start,sizeof(start));
-	printf("press start button on watch now!!!!\n");	
-	sleep(1);
-	printf("hope you already pressed button!\n");
+	//printf("press start button on watch now!!!!\n");	
+	//sleep(1);
+	//printf("hope you already pressed button!\n");
 
 	int d = 0;
 	int sampleCounter = 0;
 	int reqCounter = 0;
+	int minus_counter=0;
+	int plus_counter=0;
+	
 	
 	while(1)
 	{
 		
-		usleep(25000);
+		usleep(25000); //assuming sampling rate is 33Hz
 		strcpy(response,"");
 
 		//data request sequence: 0xFF 0x08 0x07 0x00 0x00 0x00 0x00;
@@ -84,26 +89,62 @@ int main(int argc, char **argv)
 		y = response[5];
 		z = response[6];
 
-		if (u ==1)
-		{		
 		
-			reqCounter++;
+		
+		if (u ==1){
+		        if(minus_counter>=0) minus_counter=0;
+			start_recording =1;
+		}	
 			
-			if(reqCounter >=100){
-			    return 0;
-		        }
+			
+		if(start_recording==1){		
 		        
-		}
-		else{
-		       // if((reqCounter>0) && (u!=1) && (u!=0)) break;
-		}
-		printf("%d,%d,%hhd,%hhd,%hhd,%hhd\n",sampleCounter,reqCounter,x,y,z,u);
+			if(u==-1){
+		           minus_counter++;
+		           if(minus_counter>=5){
+		           	printf("button press case: samples collected: %d\n",reqCounter);
+		           	start_recording=0;
+		            break;
+		           }
+		        }		
+			
+		     
+		       if(u==1){
+		       
+		       rms_array[reqCounter]= (x*x+y*y+z*z);
+		       reqCounter++;
+		       }
+		       
+		       if(reqCounter >=100){
+			    printf("end case: samples collected: %d\n",reqCounter);
+			    start_recording =0;
+			    break;
+		       }
+		       
+		           
+		}	
+			
+		//printf("%d,%d,%d,%hhd,%hhd,%hhd,%hhd\n",sampleCounter,reqCounter,start_recording,x,y,z,u);
 		sampleCounter++;
 		
 
 	}
+        
+        //FILE *fFile = fopen("data.txt", "w");
+	int n;
 
-
+	// for(n=0;n<reqCounter;n++) {
+	//	 fprintf(fFile,"%d,%d\n",n ,rms_array[n]);
+	// }
+	
+	 if(reqCounter< 30) {printf("not enough data points!Please redo gesture!\n");}
+	 else{
+          for(n=0;n<reqCounter;n++) {
+		 printf("%d\n",rms_array[n]);
+	  }
+          }
+        //fclose(fFile);  
+  
 	close(wFile);
 	
 	return 0;
