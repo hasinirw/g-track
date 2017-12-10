@@ -4,7 +4,7 @@
 #include <stdint.h> //int8_t
 #include <math.h>
 
-#include <gesture_averaged_int.h>
+#include "templates.h"
 
 #include <unistd.h> //sleep
 #include <sys/types.h>
@@ -12,12 +12,17 @@
 #include <fcntl.h>
 #include <termios.h> // serial ports
 
+
+
 /* baudrate settings are defined in <asm/termbits.h>, which is included by <termios.h> */
 #define BAUDRATE 115200         
 /* change this definition for the correct port */
 #define DEVICEPORT "/dev/ttyACM0"
 
 
+int mes_dtw(int (*drg)[3], int (*drg1)[3],int n, int m, int dim);
+int distanceBetween(int p1, int p2);
+int fimin(int x,int y);
 
 int main(int argc, char **argv) 
 {
@@ -57,6 +62,18 @@ int main(int argc, char **argv)
 	dataRequest[5] = 0x00;
 	dataRequest[6] = 0x00; 
 	
+	//write to buffer
+	static int pFile;
+	pFile =open("/dev/gesture",O_RDWR);
+	if(pFile<0){
+	    printf("gesture module not loaded\n");
+	    return -1;
+	    }
+	
+	char buff[5];
+	memset(buff,0,5);
+	
+	
 	// open port for watch RF Communication
 	struct termios  config;
 	int wFile;
@@ -86,6 +103,12 @@ int main(int argc, char **argv)
 	int minus_counter=0;
 	int plus_counter=0;
 	
+while(1){
+d = 0;
+sampleCounter = 0;
+reqCounter = 0;
+minus_counter=0;
+plus_counter=0;
 	
 	while(1)
 	{
@@ -128,6 +151,7 @@ int main(int argc, char **argv)
 		       rms_array[reqCounter][0]= x;
 		       rms_array[reqCounter][1]= y;
 		       rms_array[reqCounter][2]= z;
+		       printf("%d %d %d\n", rms_array[reqCounter][0],rms_array[reqCounter][1],rms_array[reqCounter][2]);
 
 		       reqCounter++;
 		       }
@@ -148,38 +172,117 @@ int main(int argc, char **argv)
 	}
         
         //FILE *fFile = fopen("data.txt", "w");
-	int n;
-    int templateg[reqCounter][3];
+        int n;
+	
+	
+        int templateg[reqCounter][3];
 	for(n=0;n<reqCounter;n++) {
 		 templateg[reqCounter][0] =rms_array[reqCounter][0];
-	     templateg[reqCounter][1] =rms_array[reqCounter][1];
+	         templateg[reqCounter][1] =rms_array[reqCounter][1];
 		 templateg[reqCounter][2] =rms_array[reqCounter][2];
-		 	 
+		// printf("test %d ,%d, %d\n",  templateg[n][0], templateg[n][1],  templateg[n][2]); 
 	}
-
-	int ysize= sizeof templateg/ sizeof templateg[0];
+	
+       
+        
+        
+	//int ysize= sizeof templateg/ sizeof templateg[0];
+	int ysize= reqCounter;
          
-    distances1[0] =mes_dtw(gesture1,templateg,xsize1,ysize,3);
-    distances1[1] =mes_dtw(gesture2,templateg,xsize2,ysize,3);
-    distances1[2] =mes_dtw(gesture3,templateg,xsize3,ysize,3);
-    distances1[3] =mes_dtw(gesture4,templateg,xsize4,ysize,3);
-    distances1[4] =mes_dtw(gesture5,templateg,xsize5,ysize,3);
-    distances1[5] =mes_dtw(gesture6,templateg,xsize6,ysize,3);
-    distances1[6] =mes_dtw(gesture7,templateg,xsize7,ysize,3);
-    distances1[7] =mes_dtw(gesture8,templateg,xsize8,ysize,3);
+    distances1[0] =mes_dtw(gesture1,rms_array,xsize1,ysize,3);
+    distances1[1] =mes_dtw(gesture2,rms_array,xsize2,ysize,3);
+    distances1[2] =mes_dtw(gesture3,rms_array,xsize3,ysize,3);
+    distances1[3] =mes_dtw(gesture4,rms_array,xsize4,ysize,3);
+    distances1[4] =mes_dtw(gesture5,rms_array,xsize5,ysize,3);
+    distances1[5] =mes_dtw(gesture6,rms_array,xsize6,ysize,3);
+    distances1[6] =mes_dtw(gesture7,rms_array,xsize7,ysize,3);
+    distances1[7] =mes_dtw(gesture8,rms_array,xsize8,ysize,3);
     //distances1[8] =mes_dtw(gesture9,templateg,xsize9,ysize,3);
     int i;
-    for(i =0; i<sizeof(distances1)/sizeof(distances1[0]) ; i++) {fprintf(stdout,"distances %d : %d\n", i,distances1[i]);}
+    
+    int gesture_selected =1;
+    
+    int mindis=distances1[0];
+    
+    for(i =0; i<sizeof(distances1)/sizeof(distances1[0]) ; i++) {
+      
+     if(distances1[i]<mindis) {
+         gesture_selected = i+1;
+         mindis=distances1[i];
+         // printf("gtest: %d %d\n",i+1, mindis);
+         }
+         
      
+         
+   //  fprintf(stdout,"distances %d : %d\n", i+1,distances1[i]);
+     }
+     
+     printf("gesture_selected: %d\n",gesture_selected);
 	
     if(reqCounter< 30) {printf("not enough data points!Please redo gesture!\n");}
-	else{
-         for(n=0;n<reqCounter;n++) {
-		 printf("%d\n",rms_array[n]);
-	}
+    else{
+        sprintf(buff,"%d",gesture_selected);
+	printf("buff=%s\n",buff);
+        write(pFile,buff,5);
+	
     }
-        //fclose(fFile);  
+
+        
+}  // end of outer while loop      
   	close(wFile);
+	close(pFile);
 	
 	return 0;
-}
+}  // end of main
+
+
+
+
+    int mes_dtw(int (*drg)[3], int (*drg1)[3],int n, int m, int dim) {
+
+        int n1 =n;
+        int n2 = m;
+        int x;
+        int y;
+      
+        int *lastRow = (int *)malloc(sizeof(int) * n );
+        int *curRow = (int *)malloc(sizeof(int) * n );
+        int *temp = (int *)malloc(sizeof(int) * n );
+        int minCost=0;
+
+        
+	    curRow[0] = sqrt(distanceBetween(drg[0][0], drg1[0][0])+distanceBetween(drg[0][1], drg1[0][1])+distanceBetween(drg[0][2], drg1[0][2]));
+
+	    for (x = 1; x < n1; x++) {
+	    	   
+		      curRow[x] = curRow[x-1] + sqrt(distanceBetween(drg[x][0], drg1[0][0])+distanceBetween(drg[x][1], drg1[0][1])+distanceBetween(drg[x][2], drg1[0][2]));
+	    }
+        
+        for (y = 1; y < n2; y++) {
+            temp = curRow;
+            curRow = lastRow;
+            lastRow = temp;
+
+		    curRow[0] = lastRow[0] + sqrt(distanceBetween(drg[0][0], drg1[y][0])+distanceBetween(drg[0][1], drg1[y][1])+distanceBetween(drg[0][2], drg1[y][2]));
+		    for (x = 1; x < n1; x++ ){
+			    minCost = fimin(curRow[x-1], fimin(lastRow[x], lastRow[x-1]));
+			    curRow[x] = minCost + sqrt(distanceBetween(drg[x][0], drg1[y][0])+distanceBetween(drg[x][1], drg1[y][1])+distanceBetween(drg[x][2], drg1[y][2]));
+		    }
+	    }
+        return curRow[n1-1];
+	}	
+
+	int distanceBetween(int p1, int p2) {
+		return (p1 - p2) * (p1 - p2);
+	}
+
+
+      
+	int fimin(int x,int y){
+	     int k;
+	     if(x<y) k=x;
+	     else k=y;
+	     
+	     return k;
+	}
+	
